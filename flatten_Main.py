@@ -15,7 +15,10 @@ def flatten(j, name):
     j = open_json(j)
     out_arr, list_arr, name_arr = [], [], []
     for o in j:
-        id, tmp= {"id":o["id"]}, {}
+        try:
+            id, tmp= {"id":o["id"]}, {}
+        except KeyError:
+            print("No ID:" + str(o))
 
         for val in o:
             if not (isinstance(o[val], dict) or isinstance(o[val], list)):
@@ -42,11 +45,14 @@ def recursive_flatten(name_arr, list_arr, id):
             __index+=1
         flatten(list_arr, name_arr[0])
     else:
-        t = {}
-        t.update(id)
-        t.update(list_arr[0])
-        list_arr[__index] = t
-        flatten(list_arr, name_arr[0])
+        try:
+            t = {}
+            t.update(id)
+            t.update(list_arr[0])
+            list_arr[__index] = t
+            flatten(list_arr, name_arr[0])
+        except ValueError:
+            print(str(list_arr))
 
 '''
 helper function for taking key value pairs that are not simple strings
@@ -54,7 +60,13 @@ if nested they will be recursively flattened
 otherwise appends entire object to holder arrays
 '''
 def non_flat_object_flatten(val, object, name, id, list_arr, name_arr):
-    if isinstance(object[val], list):
+    #this statement handles keys where value is an array of flat objects
+    if isinstance(object[val], list) and len(object[val]) > 1 and not isinstance(object[val][0], dict):
+        t = {}
+        t.update(id)
+        t.update({val:object[val]})
+        write_json(t, name_helper(name)+"_"+val)
+    elif isinstance(object[val], list):
         object[val] = list_flatten_and_id(object[val], id)
         flatten(object[val], name_helper(name)+"_"+val)
     else:
@@ -67,14 +79,14 @@ if multiple length list then does
 otherise just appends id
 '''
 def list_flatten_and_id(object_value, id):
-    if len(object_value) > 1:
+    if len(object_value) > 1 and isinstance(object_value, list):
         index = 0
         repl = []
         for element in object_value:
             repl.append(index_and_id(id, index, element))
             index +=1
         object_value = repl
-    else:
+    elif len(object_value) == 1:
         object_value[0].update(id)
     return object_value
 
@@ -117,11 +129,7 @@ def open_json(f):
     if not (isinstance(f, dict) or isinstance(f, list)):
         try:
             with open(f) as json_file:
-                mylist = list(json_file)
-                #this step is done to alter the ‘asdjasd’ to be readable
-                list_str = mylist[0].replace("‘","\"").replace('’','\"')
-                output_json = json.loads(list_str)
-            #assumption is that there is only one list per JSON
+                output_json = json.load(json_file)
             if isinstance(output_json, dict):
                 return output_json[f[:-5]]
             else:
